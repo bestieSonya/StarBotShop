@@ -3,6 +3,7 @@ import json
 import logging
 import os
 from typing import Dict, Optional, Tuple
+from urllib.parse import quote
 
 import aiofiles
 from dotenv import load_dotenv
@@ -35,6 +36,7 @@ class UserDataManager:
         self, filename: str = "user_data.json", bot_username: str = ""
     ) -> None:
         self._filename = filename
+        # Теперь bot_username передаётся конструктором из TelegramBotApp
         self._bot_username = bot_username
         self._file_lock = asyncio.Lock()
 
@@ -89,8 +91,9 @@ class UserDataManager:
             return user.get("referrals", 0), user.get("total_earned", 0.0)
         return 0, 0.0
 
+    # Теперь метод использует self._bot_username, установленный из .env
     def generate_referral_link(self, user_id: int) -> str:
-        return f"https://t.me/MimikoStoresbot?start=r{user_id}"
+        return f"https://t.me/{self._bot_username}?start=r{user_id}"
 
     async def find_user_by_username(self, username: str) -> Optional[str]:
         data = await self.load_data()
@@ -107,10 +110,14 @@ class TelegramBotApp:
         wallet = os.getenv("YOOMONEY_WALLET")
         admin_chat_id = os.getenv("ADMIN_CHAT_ID")
         star_rate_str = os.getenv("STAR_RATE")
+        support_username = os.getenv("SUPPORT_USERNAME")
+        # --- Новая переменная ---
+        bot_username_from_env = os.getenv("BOT_USERNAME_FOR_LINK") # <--- Имя бота для ссылки из .env
+        # ------------------------
 
-        if not all([token, wallet, admin_chat_id, star_rate_str]):
+        if not all([token, wallet, admin_chat_id, star_rate_str, support_username, bot_username_from_env]): # <--- Добавлена проверка
             raise ValueError(
-                "Одна из переменных окружения не задана: BOT_TOKEN, YOOMONEY_WALLET, ADMIN_CHAT_ID, STAR_RATE"
+                "Одна из переменных окружения не задана: BOT_TOKEN, YOOMONEY_WALLET, ADMIN_CHAT_ID, STAR_RATE, SUPPORT_USERNAME, BOT_USERNAME_FOR_LINK"
             )
 
         try:
@@ -121,7 +128,10 @@ class TelegramBotApp:
         self._token = token
         self._wallet = wallet
         self._admin_chat_id = int(admin_chat_id)
-        self._user_data_manager = UserDataManager()
+        self._support_username = support_username.lstrip('@')
+        # --- Передаём имя бота из .env в UserDataManager ---
+        self._user_data_manager = UserDataManager(bot_username=bot_username_from_env)
+        # ---------------------------------------------------
         self._application = Application.builder().token(self._token).build()
 
         self._register_handlers()
@@ -139,8 +149,8 @@ class TelegramBotApp:
         if not user:
             return
 
-        me = await context.bot.get_me()
-        self._user_data_manager._bot_username = me.username
+        # me = await context.bot.get_me() # <--- Больше не нужно получать username динамически для ссылки
+        # self._user_data_manager._bot_username = me.username # <--- Убрано
 
         referred_by = None
         if context.args and context.args[0].startswith('r'):
@@ -177,7 +187,8 @@ class TelegramBotApp:
         context.user_data["payment_comment"] = comment
         context.user_data.pop("awaiting_amount", None)
 
-        url = f"https://yoomoney.ru/to/{self._wallet}?amount={price_rub}&comment={comment}"
+        encoded_comment = quote(comment)
+        url = f"https://yoomoney.ru/to/{self._wallet}?amount={price_rub}&comment={encoded_comment}"
         keyboard = [
             [InlineKeyboardButton("Оплатить через YooMoney (СБП)", url=url)],
             [InlineKeyboardButton("✅ Я оплатил", callback_data="confirm_payment")]
@@ -279,7 +290,7 @@ class TelegramBotApp:
                     await context.bot.send_message(
                         chat_id=payer_id,
                         text=f"❗️Ваш платёж подтверждён, но пользователь @{recipient_username} не найден. "
-                        "Звёзды не были зачислены. Свяжитесь с поддержкой @StarBotSupport.",
+                        f"Звёзды не были зачислены. Свяжитесь с поддержкой @{self._support_username}.",
                     )
                     await query.edit_message_text(
                         text=original_message
@@ -290,7 +301,7 @@ class TelegramBotApp:
             user_id = int(parts[2])
             await context.bot.send_message(
                 chat_id=user_id,
-                text="❗️ Ваш последний платёж был отклонён. Свяжитесь с поддержкой.\n @MimikoSupport", 
+                text=f"❗️ Ваш последний платёж был отклонён. Свяжитесь с поддержкой.\n @{self._support_username}",
             )
             await query.edit_message_text(
                 text=original_message + "\n\n**[ ❌ ПЛАТЁЖ ОТКЛОНЁН ]**",
@@ -349,6 +360,7 @@ class TelegramBotApp:
     async def _partner_program(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.effective_user.id
         ref, earned = await self._user_data_manager.get_user_stats(user_id)
+        # Теперь generate_referral_link использует имя из .env
         link = self._user_data_manager.generate_referral_link(user_id)
         text = (
             "<b>👥 Реферальная система</b>\n"
