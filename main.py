@@ -36,7 +36,6 @@ class UserDataManager:
         self, filename: str = "user_data.json", bot_username: str = ""
     ) -> None:
         self._filename = filename
-        # Теперь bot_username передаётся конструктором из TelegramBotApp
         self._bot_username = bot_username
         self._file_lock = asyncio.Lock()
 
@@ -91,7 +90,6 @@ class UserDataManager:
             return user.get("referrals", 0), user.get("total_earned", 0.0)
         return 0, 0.0
 
-    # Теперь метод использует self._bot_username, установленный из .env
     def generate_referral_link(self, user_id: int) -> str:
         return f"https://t.me/{self._bot_username}?start=r{user_id}"
 
@@ -111,9 +109,7 @@ class TelegramBotApp:
         admin_chat_id = os.getenv("ADMIN_CHAT_ID")
         star_rate_str = os.getenv("STAR_RATE")
         support_username = os.getenv("SUPPORT_USERNAME")
-        # --- Новая переменная ---
-        bot_username_from_env = os.getenv("BOT_USERNAME_FOR_LINK") # <--- Имя бота для ссылки из .env
-        # ------------------------
+        bot_username_from_env = os.getenv("BOT_USERNAME_FOR_LINK")
 
         if not all([token, wallet, admin_chat_id, star_rate_str, support_username, bot_username_from_env]): # <--- Добавлена проверка
             raise ValueError(
@@ -129,9 +125,7 @@ class TelegramBotApp:
         self._wallet = wallet
         self._admin_chat_id = int(admin_chat_id)
         self._support_username = support_username.lstrip('@')
-        # --- Передаём имя бота из .env в UserDataManager ---
         self._user_data_manager = UserDataManager(bot_username=bot_username_from_env)
-        # ---------------------------------------------------
         self._application = Application.builder().token(self._token).build()
 
         self._register_handlers()
@@ -148,9 +142,6 @@ class TelegramBotApp:
         user = update.effective_user
         if not user:
             return
-
-        # me = await context.bot.get_me() # <--- Больше не нужно получать username динамически для ссылки
-        # self._user_data_manager._bot_username = me.username # <--- Убрано
 
         referred_by = None
         if context.args and context.args[0].startswith('r'):
@@ -360,7 +351,6 @@ class TelegramBotApp:
     async def _partner_program(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.effective_user.id
         ref, earned = await self._user_data_manager.get_user_stats(user_id)
-        # Теперь generate_referral_link использует имя из .env
         link = self._user_data_manager.generate_referral_link(user_id)
         text = (
             "<b>👥 Реферальная система</b>\n"
