@@ -1,0 +1,16 @@
+'''
+bot token
+'''
+BOT_TOKEN= 
+'''
+youmoney wallet id
+'''
+YOOMONEY_WALLET= 
+'''
+admin digital id for acces order
+'''
+ADMIN_CHAT_ID=
+'''
+star rate 1 star = ruble exchange rate 
+'''
+STAR_RATE=
