@@ -1,20 +1,12 @@
-'''
-bot token
-'''
+'''bot token'''
 BOT_TOKEN= 
-'''
-youmoney wallet id
-'''
+'''youmoney wallet id'''
 YOOMONEY_WALLET= 
-'''
-admin digital id for acces order
-'''
+'''admin digital id for acces order'''
 ADMIN_CHAT_ID=
-'''
-star rate 1 star = ruble exchange rate 
-'''
+'''star rate 1 star = ruble exchange rate'''
 STAR_RATE=
-'''
-SUPPORT_USERNAME=your_support_username_here
-'''
-BOT_USERNAME_FOR_LINK=your_bot_username_for_link_here # <--- И сюда
+'''your_support_username_here'''
+SUPPORT_USERNAME=
+'''your_bot_username_for_link_here'''
+BOT_USERNAME_FOR_LINK=
